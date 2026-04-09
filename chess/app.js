@@ -1157,6 +1157,23 @@ function syncExplainButton() {
     btnExplain.classList.toggle('active', explainOn);
     if (explainLabel) explainLabel.textContent = explainOn ? 'Explain On' : 'Explain Off';
     if (explainPanel) explainPanel.classList.toggle('hidden', !explainOn);
+
+    // Dynamic Status Bar relocation
+    const statusBar = $('status-bar');
+    const boardLoc = $('board-footer-container');
+    const sidebarLoc = $('explain-status-container');
+    
+    if (statusBar && boardLoc && sidebarLoc) {
+        if (explainOn) {
+            sidebarLoc.appendChild(statusBar);
+            statusBar.style.boxShadow = 'none';
+            statusBar.style.marginTop = '0';
+        } else {
+            boardLoc.appendChild(statusBar);
+            statusBar.style.boxShadow = 'var(--nm-raised-sm)';
+            statusBar.style.marginTop = 'auto';
+        }
+    }
 }
 
 function updateExplainTranscript() {
@@ -1190,10 +1207,11 @@ function updateExplainTranscript() {
     else if (evalScore < -0.6) outlook = "Black has clear edge.";
 
     const moveStr = currentStep > 0 ? allMoves[currentStep - 1] : "Start";
+    const speechDesc = buildSpeechText(currentStep);
 
     item.innerHTML = `
         <div class="transcript-header">
-            <span>Step ${currentStep} (${moveStr})</span>
+            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px;">Step ${currentStep}: ${speechDesc}</span>
             <span class="transcript-eval">${(evalScore > 0 ? '+' : '')}${evalScore.toFixed(1)}</span>
         </div>
         ${rating ? `
@@ -1202,7 +1220,9 @@ function updateExplainTranscript() {
             <span style="font-size:0.85rem;">${rating.label}</span>
         </div>` : ''}
         <div class="transcript-text">
-            ${currentStep === 0 ? 'Engine analysis initiated at starting position.' : `The evaluation after <b>${moveStr}</b> is ${evalScore.toFixed(1)}. ${outlook}`}
+            <div style="font-size:0.85rem; color:var(--text-2); line-height:1.5;">
+                ${currentStep === 0 ? 'Engine analysis initiated at starting position.' : `This move brings the evaluation to <b>${evalScore.toFixed(1)}</b>. ${outlook}`}
+            </div>
         </div>
     `;
     

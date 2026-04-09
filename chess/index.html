@@ -170,10 +170,12 @@
         </div>
       </div>
 
-      <!-- Status Bar (shows spoken move description) -->
-      <div class="status-bar" id="status-bar">
-        <div class="status-dot" id="status-dot"></div>
-        <span class="status-text" id="status-text">Paste a PGN and click Visualize Game</span>
+      <!-- Container for Status Bar (handles dynamic move when Explain is toggled) -->
+      <div id="board-footer-container" style="width: 100%; margin-top: auto; display: flex;">
+        <div class="status-bar" id="status-bar">
+          <div class="status-dot" id="status-dot"></div>
+          <span class="status-text" id="status-text">Paste a PGN and click Visualize Game</span>
+        </div>
       </div>
 
     </section>
@@ -189,6 +191,8 @@
              Analysis transcript will appear here as you play...
            </div>
         </div>
+        <!-- Target for Status Bar when Explain is ON -->
+        <div id="explain-status-container" style="padding: 12px; border-top: 1px solid rgba(0,0,0,0.05); background: rgba(0,0,0,0.01);"></div>
       </div>
     </aside>
   </div>
