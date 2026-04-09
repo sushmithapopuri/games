@@ -36,8 +36,8 @@ const moveListEl     = $('move-list');
 const gameInfoEl     = $('game-info');
 const statusText     = $('status-text');
 const statusDot      = $('status-dot');
-const blackCaptures  = $('black-captures');
-const whiteCaptures  = $('white-captures');
+const blackCaptures  = null; // Removed
+const whiteCaptures  = null; // Removed
 const toastEl        = $('toast');
 const playIconSvg    = $('play-icon');
 const playLabelEl    = $('play-label');
@@ -248,12 +248,97 @@ function attacksSquare(board, from, to, type) {
   }
 }
 
-// ── Captures ─────────────────────────────────────────────────────
+// ── Catch engine capture loops securely driving UI ─────────────────────────────────────────────────────
+let currentCapW = [];
+let currentCapB = [];
+let capturesTeamView = 'white';
+const SCORE_VALS = { 'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 0 };
+
 function renderCaptures(capW, capB) {
-  const order     = p => ['Q','R','B','N','P'].indexOf(p[1]);
+  currentCapW = capW; // capW = what White natively captured from Black
+  currentCapB = capB; // capB = what Black natively captured from White
+  const getVal = arr => arr.reduce((sum, p) => sum + (SCORE_VALS[p[1]] || 0), 0);
+  const diff = getVal(capW) - getVal(capB);
+  
+  const scoreW = $('score-val-white');
+  const scoreB = $('score-val-black');
+  if (scoreW) scoreW.textContent = diff > 0 ? `+${diff}` : '0';
+  if (scoreB) scoreB.textContent = diff < 0 ? `+${Math.abs(diff)}` : '0';
+  
+  if ($('captures-modal')?.open) updateCapturesModal();
+}
+
+function updateCapturesModal() {
+  const order = p => ['Q','R','B','N','P'].indexOf(p[1]);
   const toSymbols = arr => [...arr].sort((a, b) => order(a) - order(b)).map(p => PIECES?.[p] || '').join('');
-  blackCaptures.textContent = toSymbols(capW);
-  whiteCaptures.textContent = toSymbols(capB);
+  
+  if (capturesTeamView === 'white') {
+     $('captures-modal-title').textContent = "White Intel";
+     $('modal-captures').textContent = toSymbols(currentCapW) || "—";
+     $('modal-sacrifices').textContent = toSymbols(currentCapB) || "—";
+  } else {
+     $('captures-modal-title').textContent = "Black Intel";
+     $('modal-captures').textContent = toSymbols(currentCapB) || "—";
+     $('modal-sacrifices').textContent = toSymbols(currentCapW) || "—";
+  }
+  
+  // Build Visual Audit Timeline
+  const logEl = $('audit-log');
+  if (!logEl) return;
+  
+  let lastW = 0, lastB = 0;
+  let linesHTML = [];
+  
+  for (let i = 1; i <= currentStep; i++) {
+     const st = captureStates[i];
+     if (!st) continue;
+     const wArr = st.capturedByWhite, bArr = st.capturedByBlack;
+     const moveNumStr = Math.ceil(i/2) + (i%2 !== 0 ? '.' : '...');
+     const san = allMoves[i-1];
+     
+     // Did White Capture something?
+     if (wArr.length > lastW) {
+         const pieceStr = wArr[wArr.length - 1]; // ex: "Bp"
+         if (pieceStr && pieceStr.length > 1) {
+             const pType = pieceStr[1].toUpperCase();
+             const pName = PIECE_NAMES[pType] || 'Pawn';
+             const pts = SCORE_VALS[pType] || 0;
+             const icon = PIECES[pieceStr] || pType;
+             
+             if (capturesTeamView === 'white') {
+                 linesHTML.unshift(`<div class="audit-item"><span class="audit-move">${moveNumStr} ${san}</span><div style="display:flex; align-items:center; gap:8px;"><span style="font-size:1.15rem; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.3));">${icon}</span><span style="font-size:0.75rem; color:var(--text-3); font-weight:500; min-width:45px;">${pName}</span><span class="audit-change positive">+${pts} pts</span></div></div>`);
+             } else {
+                 linesHTML.unshift(`<div class="audit-item"><span class="audit-move">${moveNumStr} ${san}</span><div style="display:flex; align-items:center; gap:8px;"><span style="font-size:1.15rem; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.3));">${icon}</span><span style="font-size:0.75rem; color:var(--text-3); font-weight:500; min-width:45px;">${pName}</span><span class="audit-change negative">-${pts} pts</span></div></div>`);
+             }
+         }
+     }
+     
+     // Did Black Capture something?
+     if (bArr.length > lastB) {
+         const pieceStr = bArr[bArr.length - 1]; // ex: "Wp"
+         if (pieceStr && pieceStr.length > 1) {
+             const pType = pieceStr[1].toUpperCase();
+             const pName = PIECE_NAMES[pType] || 'Pawn';
+             const pts = SCORE_VALS[pType] || 0;
+             const icon = PIECES[pieceStr] || pType;
+             
+             if (capturesTeamView === 'black') {
+                 linesHTML.unshift(`<div class="audit-item"><span class="audit-move">${moveNumStr} ${san}</span><div style="display:flex; align-items:center; gap:8px;"><span style="font-size:1.15rem; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.3));">${icon}</span><span style="font-size:0.75rem; color:var(--text-3); font-weight:500; min-width:45px;">${pName}</span><span class="audit-change positive">+${pts} pts</span></div></div>`);
+             } else {
+                 linesHTML.unshift(`<div class="audit-item"><span class="audit-move">${moveNumStr} ${san}</span><div style="display:flex; align-items:center; gap:8px;"><span style="font-size:1.15rem; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.3));">${icon}</span><span style="font-size:0.75rem; color:var(--text-3); font-weight:500; min-width:45px;">${pName}</span><span class="audit-change negative">-${pts} pts</span></div></div>`);
+             }
+         }
+     }
+     
+     lastW = wArr.length;
+     lastB = bArr.length;
+  }
+  
+  if (linesHTML.length === 0) {
+      logEl.innerHTML = '<div style="font-size:0.75rem; color:var(--text-4); text-align:center; padding: 12px; margin-top: 10px;">Zero material exchanges</div>';
+  } else {
+      logEl.innerHTML = linesHTML.join('');
+  }
 }
 
 // ── Move Description (for move list display) ─────────────────────
@@ -316,17 +401,17 @@ function buildMoveChip(san, step) {
   return chip;
 }
 
-// Scroll active move into center of visible list area
+// Scroll active move into center of visible list area horizontally
 function highlightMove(step) {
   moveListEl.querySelectorAll('.move-chip').forEach(el =>
     el.classList.toggle('active', parseInt(el.dataset.step) === step)
   );
   const active = moveListEl.querySelector('.move-chip.active');
   if (active) {
-    const listH     = moveListEl.clientHeight;
-    const chipTop   = active.offsetTop;
-    const chipH     = active.offsetHeight;
-    moveListEl.scrollTo({ top: chipTop - listH / 2 + chipH / 2, behavior: 'smooth' });
+    const listW     = moveListEl.clientWidth;
+    const chipLeft  = active.offsetLeft;
+    const chipW     = active.offsetWidth;
+    moveListEl.scrollTo({ left: chipLeft - listW / 2 + chipW / 2, behavior: 'smooth' });
   }
 }
 
@@ -445,7 +530,9 @@ btnStart.addEventListener('click', () => { stopPlay(); speechSynthesis.cancel();
 btnEnd.addEventListener('click',   () => { stopPlay(); jumpToStep(totalSteps); });
 btnPrev.addEventListener('click',  () => { stopPlay(); speechSynthesis.cancel(); jumpToStep(currentStep - 1); });
 btnNext.addEventListener('click',  () => { stopPlay(); jumpToStep(currentStep + 1); });
-btnClear.addEventListener('click', () => { pgnInput.value = ''; pgnInput.focus(); });
+if (btnClear) {
+    btnClear.addEventListener('click', () => { pgnInput.value = ''; pgnInput.focus(); });
+}
 
 speedSlider.addEventListener('input', () => {
   playSpeed = parseInt(speedSlider.value);
@@ -575,112 +662,215 @@ Kf8 24. Bxe7# 1-0`
   },
 ];
 
-btnLoadSample.addEventListener('click', () => {
-  const g = SAMPLE_GAMES[Math.floor(Math.random() * SAMPLE_GAMES.length)];
-  pgnInput.value = g.pgn;
-  showToast(`Loaded: ${g.name}`, 'ok');
-});
+if (btnLoadSample) {
+  btnLoadSample.addEventListener('click', () => {
+    const g = SAMPLE_GAMES[Math.floor(Math.random() * SAMPLE_GAMES.length)];
+    pgnInput.value = g.pgn;
+    showToast(`Loaded: ${g.name}`, 'ok');
+  });
+}
 
-// ── Fetch Real Game from Lichess.org ──────────────────────────────
-// Uses three strategies, each as a fallback for the previous:
-//  1. Fetch a random game from lichess's "top rated games" broadcast
-//  2. Fetch from lichess TV (current best live game in classical/rapid)
-//  3. Fall back to a local famous game
-
-const LICHESS_TV_CHANNELS = ['classical', 'rapid', 'blitz'];
-
-// Curated known-good game IDs on lichess (verified public games)
-const LICHESS_GAME_IDS = [
-  'q7zvsd8k', 'TJx5WnuC', 'vUvvVFND', 'NW2H61MJ', 'vnWkGLAb',
-  'rHHoaxXq', 'nmqbS7Xs', '5jgkOKR2', 'qFwkbHxK', 'YGm9PZEV',
-  'b8CTdN5I', 'LZb5Ckhv', 'UYkIOgSh', 'BNb17AE5', 'yghrNpAj',
-  'aKdxBTMB', 'f1DiVgqX', 'FNhioXFY', 'eHhyEFmS', 'KW7AIMHE',
+// ── PGN Mentor — fetch ZIP → unzip → load first game ─────────────
+// All URLs scraped from https://www.pgnmentor.com/files.html
+// (same list as games_list.txt, line 2 onwards)
+const PGNMENTOR_URLS = [
+  'https://www.pgnmentor.com/players/Abdusattorov.zip',
+  'https://www.pgnmentor.com/players/Adams.zip',
+  'https://www.pgnmentor.com/players/Akobian.zip',
+  'https://www.pgnmentor.com/players/Akopian.zip',
+  'https://www.pgnmentor.com/players/Alekhine.zip',
+  'https://www.pgnmentor.com/players/Alexeev.zip',
+  'https://www.pgnmentor.com/players/Anand.zip',
+  'https://www.pgnmentor.com/players/Anderssen.zip',
+  'https://www.pgnmentor.com/players/Aronian.zip',
+  'https://www.pgnmentor.com/players/Bacrot.zip',
+  'https://www.pgnmentor.com/players/Botvinnik.zip',
+  'https://www.pgnmentor.com/players/Bronstein.zip',
+  'https://www.pgnmentor.com/players/Capablanca.zip',
+  'https://www.pgnmentor.com/players/Carlsen.zip',
+  'https://www.pgnmentor.com/players/Caruana.zip',
+  'https://www.pgnmentor.com/players/Chigorin.zip',
+  'https://www.pgnmentor.com/players/Ding.zip',
+  'https://www.pgnmentor.com/players/Duda.zip',
+  'https://www.pgnmentor.com/players/Euwe.zip',
+  'https://www.pgnmentor.com/players/Erigaisi.zip',
+  'https://www.pgnmentor.com/players/Firouzja.zip',
+  'https://www.pgnmentor.com/players/Fischer.zip',
+  'https://www.pgnmentor.com/players/Gelfand.zip',
+  'https://www.pgnmentor.com/players/Giri.zip',
+  'https://www.pgnmentor.com/players/Grischuk.zip',
+  'https://www.pgnmentor.com/players/Gukesh.zip',
+  'https://www.pgnmentor.com/players/Harikrishna.zip',
+  'https://www.pgnmentor.com/players/Ivanchuk.zip',
+  'https://www.pgnmentor.com/players/Kamsky.zip',
+  'https://www.pgnmentor.com/players/Karjakin.zip',
+  'https://www.pgnmentor.com/players/Karpov.zip',
+  'https://www.pgnmentor.com/players/Kasparov.zip',
+  'https://www.pgnmentor.com/players/Keres.zip',
+  'https://www.pgnmentor.com/players/Koneru.zip',
+  'https://www.pgnmentor.com/players/Korchnoi.zip',
+  'https://www.pgnmentor.com/players/Kramnik.zip',
+  'https://www.pgnmentor.com/players/Larsen.zip',
+  'https://www.pgnmentor.com/players/Lasker.zip',
+  'https://www.pgnmentor.com/players/Leko.zip',
+  'https://www.pgnmentor.com/players/Mamedyarov.zip',
+  'https://www.pgnmentor.com/players/Morphy.zip',
+  'https://www.pgnmentor.com/players/Nakamura.zip',
+  'https://www.pgnmentor.com/players/Nepomniachtchi.zip',
+  'https://www.pgnmentor.com/players/Nimzowitsch.zip',
+  'https://www.pgnmentor.com/players/Petrosian.zip',
+  'https://www.pgnmentor.com/players/Philidor.zip',
+  'https://www.pgnmentor.com/players/PolgarJ.zip',
+  'https://www.pgnmentor.com/players/Praggnanandhaa.zip',
+  'https://www.pgnmentor.com/players/Radjabov.zip',
+  'https://www.pgnmentor.com/players/Rubinstein.zip',
+  'https://www.pgnmentor.com/players/Shirov.zip',
+  'https://www.pgnmentor.com/players/Short.zip',
+  'https://www.pgnmentor.com/players/Smyslov.zip',
+  'https://www.pgnmentor.com/players/So.zip',
+  'https://www.pgnmentor.com/players/Spassky.zip',
+  'https://www.pgnmentor.com/players/Steinitz.zip',
+  'https://www.pgnmentor.com/players/Tal.zip',
+  'https://www.pgnmentor.com/players/Tarrasch.zip',
+  'https://www.pgnmentor.com/players/Timman.zip',
+  'https://www.pgnmentor.com/players/Topalov.zip',
+  'https://www.pgnmentor.com/players/VachierLagrave.zip',
+  'https://www.pgnmentor.com/players/VanWely.zip',
+  'https://www.pgnmentor.com/players/Wojtaszek.zip',
+  'https://www.pgnmentor.com/players/Zukertort.zip',
 ];
+
+// List of public CORS proxies for fetching ZIP arrays explicitly ensuring maximum fallback support natively.
+const CORS_PROXIES = [
+  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://thingproxy.freeboard.io/fetch/${url}`,
+  url => `https://crossorigin.me/${url}`
+];
+
+/**
+ * Strip PGN annotations so the engine can parse cleanly:
+ *   {comments}, (variations), $NAG, ;line comments
+ * Only applied to the movetext, not the [Tag] headers.
+ */
+function stripAnnotations(pgn) {
+  // Separate headers (everything up to last ]) from movetext
+  const lastBracket = pgn.lastIndexOf(']');
+  if (lastBracket === -1) return pgn;
+  const headers   = pgn.slice(0, lastBracket + 1);
+  let   movetext  = pgn.slice(lastBracket + 1);
+
+  // Character-by-character strip
+  let out = '';
+  let depth = 0;      // parenthesis depth (variations)
+  let inBrace = false;
+  let inSemi  = false;
+
+  for (let i = 0; i < movetext.length; i++) {
+    const c = movetext[i];
+    if (inSemi)  { if (c === '\n') inSemi = false; continue; }
+    if (inBrace) { if (c === '}') inBrace = false; continue; }
+    if (c === '{') { inBrace = true; continue; }
+    if (c === ';') { inSemi  = true; continue; }
+    if (c === '(') { depth++;  continue; }
+    if (c === ')') { depth--;  continue; }
+    if (depth > 0) continue;
+    if (c === '$') { // NAG: $1, $2 …
+      while (i + 1 < movetext.length && /\d/.test(movetext[i + 1])) i++;
+      continue;
+    }
+    out += c;
+  }
+
+  // Collapse whitespace and return full PGN
+  return headers + '\n\n' + out.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Extract the first complete game from a multi-game PGN file.
+ * A game runs from [Event to its terminal result token.
+ */
+function extractFirstGame(fullPgn) {
+  // Normalise line endings
+  const text = fullPgn.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // Match: optional BOM/whitespace, then one full game
+  const m = text.match(/(\[Event[\s\S]+?(?:1-0|0-1|1\/2-1\/2|\*)\s*(?:\n|$))/);
+  return m ? m[1].trim() : text.trim();
+}
 
 const btnFetch   = $('btn-fetch-game');
 const fetchLabel = $('fetch-label');
-const fetchIcon  = $('fetch-spin-icon');
 
-async function tryFetchStrategy(url, accept) {
-  const res = await fetch(url, {
-    headers: { 'Accept': accept },
-    signal: AbortSignal.timeout(7000),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const text = (await res.text()).trim();
-  if (!text || text.length < 30) throw new Error('Empty response');
-  return text;
+async function fetchZipAndLoad(zipUrl) {
+  for (const makeProxy of CORS_PROXIES) {
+    try {
+      const proxyUrl = makeProxy(zipUrl);
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(18000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buf = await res.arrayBuffer();
+      if (buf.byteLength < 500) throw new Error('Buffer too small. Ignored.');
+
+      const zip = await JSZip.loadAsync(buf);
+      const pgnEntry = Object.values(zip.files).find(f => !f.dir && f.name.toLowerCase().endsWith('.pgn'));
+      if (!pgnEntry) throw new Error('No PGN inside ZIP');
+
+      const rawPgn = await pgnEntry.async('string');
+      const firstGame = extractFirstGame(rawPgn);
+      return stripAnnotations(firstGame);
+    } catch (err) {
+      console.warn(`[Proxy Failed] ${zipUrl}:`, err.message);
+    }
+  }
+  throw new Error('All CORS proxies unconditionally exhausted or forcibly blocked by origin server.');
 }
 
-async function loadGameFromLichess() {
+async function loadRandomGameFromList() {
   if (!btnFetch) return;
 
   btnFetch.disabled = true;
   btnFetch.classList.add('loading');
   fetchLabel.textContent = 'Fetching…';
 
-  const channel = LICHESS_TV_CHANNELS[Math.floor(Math.random() * LICHESS_TV_CHANNELS.length)];
-  const gameId  = LICHESS_GAME_IDS[Math.floor(Math.random() * LICHESS_GAME_IDS.length)];
-
-  const strategies = [
-    // Strategy 1: random archived game by ID
-    {
-      label: 'a lichess archived game',
-      url:   `https://lichess.org/game/export/${gameId}?moves=true&clocks=false&evals=false&opening=true`,
-      accept: 'application/x-chess-pgn',
-    },
-    // Strategy 2: current TV game in a channel
-    {
-      label: `lichess ${channel} TV`,
-      url:   `https://lichess.org/api/tv/${channel}`,
-      accept: 'application/x-chess-pgn',
-    },
-  ];
-
-  showToast('🌐 Fetching from lichess.org…');
-
-  for (const strategy of strategies) {
-    try {
-      const pgn = await tryFetchStrategy(strategy.url, strategy.accept);
-      pgnInput.value = pgn;
-      showToast(`✓ Loaded ${strategy.label} from lichess.org`, 'ok');
-      loadGame();
-      return; // success — stop here
-    } catch (err) {
-      console.warn(`[ChessLearner] ${strategy.label} failed:`, err.message);
+  try {
+    const urls = (typeof GAMES_LIST !== 'undefined') ? GAMES_LIST : [];
+    if (urls.length === 0) {
+        throw new Error('No legitimate ZIP URLs mapped inside native games_assets.js');
     }
-  }
 
-  // All strategies failed — use local sample
-  const fallback = SAMPLE_GAMES[Math.floor(Math.random() * SAMPLE_GAMES.length)];
-  pgnInput.value = fallback.pgn;
-  showToast(`⚡ Offline — loaded: ${fallback.name}`, 'err');
-  loadGame();
-
-  btnFetch.disabled = false;
-  btnFetch.classList.remove('loading');
-  fetchLabel.textContent = 'Load Different Game';
-}
-
-// Ensure finally runs on success path too
-const _origLoadGameFromLichess = loadGameFromLichess;
-async function loadGameFromLichessWrapped() {
-  try { await _origLoadGameFromLichess(); }
-  finally {
-    if (btnFetch) {
-      btnFetch.disabled = false;
-      btnFetch.classList.remove('loading');
-      fetchLabel.textContent = 'Load Different Game';
-    }
+    // Select random pgnmentor zip URL dynamically seamlessly!
+    const zipUrl = urls[Math.floor(Math.random() * urls.length)];
+    const playerName = zipUrl.split('/').pop().replace('.zip', '');
+    showToast(`📥 Fetching ${playerName}'s GM games...`);
+    
+    const pgn = await fetchZipAndLoad(zipUrl);
+    pgnInput.value = pgn;
+    
+    showToast(`✓ Loaded game from ${playerName}!`, 'ok');
+    loadGame();
+  } catch (err) {
+    console.warn('[Fetch Crash]:', err.message);
+    const fallback = SAMPLE_GAMES[Math.floor(Math.random() * SAMPLE_GAMES.length)];
+    pgnInput.value = fallback.pgn;
+    showToast(`⚡ Fallback Loaded: ${fallback.name}`, 'err');
+    loadGame();
+  } finally {
+    btnFetch.disabled = false;
+    btnFetch.classList.remove('loading');
+    fetchLabel.textContent = 'Load a Game';
   }
 }
 
-if (btnFetch) btnFetch.addEventListener('click', loadGameFromLichessWrapped);
+if (btnFetch) {
+  btnFetch.addEventListener('click', loadRandomGameFromList);
+}
 
-
-
-
+let currentGameHeaders = {};
 function displayGameInfo(headers) {
+  currentGameHeaders = headers;
+  const btnExplain = $('btn-explain');
+  if (btnExplain) btnExplain.disabled = false;
+
   const hasInfo = headers.Event || headers.White || headers.Date;
   if (!hasInfo) { gameInfoEl.classList.add('hidden'); return; }
   gameInfoEl.classList.remove('hidden');
@@ -738,6 +928,11 @@ function loadGame() {
   renderMoveList(allMoves.slice(0, totalSteps));
   displayGameInfo(parsed.headers);
   btnPlayPause.disabled = false;
+  
+  // Clean UI load action
+  const pgnModal = $('pgn-modal');
+  if (pgnModal && pgnModal.open) pgnModal.close();
+
   jumpToStep(0);
 }
 
@@ -763,3 +958,82 @@ function init() {
 }
 
 init();
+
+// Arrow Button Listeners for Top Move List
+const scrollLeftBtn = $('move-scroll-left');
+const scrollRightBtn = $('move-scroll-right');
+const topMoveListEl = $('move-list');
+if (scrollLeftBtn && topMoveListEl) {
+    scrollLeftBtn.addEventListener('click', () => {
+        topMoveListEl.scrollBy({ left: -300, behavior: 'smooth' });
+    });
+}
+if (scrollRightBtn && topMoveListEl) {
+    scrollRightBtn.addEventListener('click', () => {
+        topMoveListEl.scrollBy({ left: 300, behavior: 'smooth' });
+    });
+}
+
+const btnExplain = $('btn-explain');
+if (btnExplain) {
+    btnExplain.addEventListener('click', () => {
+        let query = 'chess game analysis';
+        if (currentGameHeaders.White && currentGameHeaders.Black) {
+            query = `${currentGameHeaders.White} vs ${currentGameHeaders.Black} chess game analysis`;
+        }
+        if (currentGameHeaders.Event && currentGameHeaders.Event !== '?') {
+            query += ` ${currentGameHeaders.Event}`;
+        }
+        if (currentGameHeaders.Date && !currentGameHeaders.Date.startsWith('?')) {
+            query += ` ${currentGameHeaders.Date.substring(0, 4)}`;
+        }
+        window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank');
+    });
+}
+
+// Modal Interactions
+const pgnModal = $('pgn-modal');
+const detailsModal = $('details-modal');
+const btnOpenPgn = $('btn-open-pgn');
+const btnClosePgn = $('btn-close-pgn');
+const btnOpenDetails = $('btn-open-details');
+const btnCloseDetails = $('btn-close-details');
+if (btnOpenPgn && pgnModal) {
+    btnOpenPgn.addEventListener('click', () => pgnModal.showModal());
+    btnClosePgn.addEventListener('click', () => pgnModal.close());
+    pgnModal.addEventListener('click', e => {
+        if(e.target === pgnModal) pgnModal.close();
+    });
+}
+if (btnOpenDetails && detailsModal) {
+    btnOpenDetails.addEventListener('click', () => detailsModal.showModal());
+    btnCloseDetails.addEventListener('click', () => detailsModal.close());
+    detailsModal.addEventListener('click', e => {
+        if(e.target === detailsModal) detailsModal.close();
+    });
+}
+
+// Score Modal Interactions
+const capturesModal = $('captures-modal');
+const btnCloseCaptures = $('btn-close-captures');
+const btnScoreWhite = $('btn-score-white');
+const btnScoreBlack = $('btn-score-black');
+
+if (btnScoreWhite && capturesModal) {
+    btnScoreWhite.addEventListener('click', () => {
+        if (typeof capturesTeamView !== 'undefined') capturesTeamView = 'white';
+        if (typeof updateCapturesModal === 'function') updateCapturesModal();
+        capturesModal.showModal();
+    });
+}
+if (btnScoreBlack && capturesModal) {
+    btnScoreBlack.addEventListener('click', () => {
+        if (typeof capturesTeamView !== 'undefined') capturesTeamView = 'black';
+        if (typeof updateCapturesModal === 'function') updateCapturesModal();
+        capturesModal.showModal();
+    });
+}
+if (btnCloseCaptures) btnCloseCaptures.addEventListener('click', () => capturesModal.close());
+if (capturesModal) capturesModal.addEventListener('click', e => { 
+    if (e.target === capturesModal) capturesModal.close(); 
+});

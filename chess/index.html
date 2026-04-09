@@ -13,10 +13,36 @@
 
   <!-- ── Top App Bar ── -->
   <header class="top-bar">
-    <div class="top-bar-icon">♟</div>
-    <span class="top-bar-title">Chess<span>Learner</span></span>
-    <span class="top-bar-subtitle">Paste PGN · Replay with voice narration</span>
+    <div style="display:flex; align-items:center;">
+        <div class="top-bar-icon">♟</div>
+        <span class="top-bar-title">Chess<span>Learner</span></span>
+    </div>
+    
+    <div class="top-bar-actions" style="margin-left: auto; display: flex; gap: 12px; align-items: center;">
+        <button id="btn-fetch-game" class="md-btn md-btn-fetch" style="height: 32px; font-size: 0.70rem; padding: 0 12px;">
+            <svg id="fetch-spin-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            <span id="fetch-label">Load Game</span>
+        </button>
+        <button id="btn-clear" class="md-btn md-btn-tonal" style="height: 32px; font-size: 0.70rem; padding: 0 12px;">Clear</button>
+        <button id="btn-analyze" class="md-btn md-btn-filled" style="height: 32px; font-size: 0.75rem; padding: 0 16px;">Visualize Game</button>
+        <button id="btn-open-pgn" class="md-btn md-btn-tonal" style="height: 32px; font-size: 0.75rem; padding: 0 16px;">View Game</button>
+        <button id="btn-open-details" class="md-btn md-btn-tonal" style="height: 32px; font-size: 0.75rem; padding: 0 16px;">Game Details</button>
+        <button id="btn-explain" class="md-btn md-btn-tonal" disabled style="height: 32px; font-size: 0.75rem; padding: 0 16px;">Explain</button>
+    </div>
   </header>
+
+  <!-- ── Horizontal Move List ── -->
+  <div class="top-move-list-wrapper">
+    <button id="move-scroll-left" class="move-nav-btn" aria-label="Scroll left">&#10094;</button>
+    
+    <div class="top-move-list">
+      <div id="move-list" class="move-horizontal-scroll" role="list" aria-label="Chess moves">
+         <span class="empty-moves-placeholder" style="margin-left: 10px;">Moves will appear here…</span>
+      </div>
+    </div>
+    
+    <button id="move-scroll-right" class="move-nav-btn" aria-label="Scroll right">&#10095;</button>
+  </div>
 
   <!-- ── Content ── -->
   <div class="content-area">
@@ -45,37 +71,7 @@
         </div>
       </div>
 
-      <!-- 2. PGN Input Card -->
-      <div class="md-card">
-        <div class="card-header">
-          <span class="card-title">PGN Notation</span>
-          <div style="display:flex;gap:7px;">
-            <button id="btn-load-sample" class="md-btn md-btn-tonal" style="height:30px;padding:0 11px;font-size:0.73rem;">Sample</button>
-            <button id="btn-fetch-game" class="md-btn md-btn-fetch" aria-label="Load a different game from lichess.org">
-              <svg id="fetch-spin-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-              <span id="fetch-label">Load Different Game</span>
-            </button>
-          </div>
-        </div>
-        <div class="card-body">
-          <textarea
-            id="pgn-input"
-            class="pgn-textarea"
-            placeholder="Paste PGN here…&#10;&#10;Example:&#10;1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4"
-            spellcheck="false"
-            aria-label="PGN Notation Input"
-          ></textarea>
-          <div class="action-row">
-            <button id="btn-analyze" class="md-btn md-btn-filled" aria-label="Visualize game">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-              Visualize Game
-            </button>
-            <button id="btn-clear" class="md-btn md-btn-tonal" aria-label="Clear">Clear</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 3. Controls Card  ← IN SIDEBAR -->
+      <!-- 2. Controls Card  ← IN SIDEBAR -->
       <div class="md-card controls-sidebar">
         <div class="card-header">
           <span class="card-title">Controls</span>
@@ -110,32 +106,27 @@
         </div>
       </div>
 
-      <!-- 4. Game Info -->
-      <div class="md-card game-info hidden" id="game-info" aria-live="polite">
+      <!-- Scoreboard -->
+      <div class="md-card">
         <div class="card-header">
-          <span class="card-title">Game Details</span>
+          <span class="card-title">Material Advantage</span>
         </div>
-        <div class="game-info-inner">
-          <div class="info-field" id="info-event"></div>
-          <div class="info-field" id="info-players"></div>
-          <div class="info-field" id="info-date"></div>
-          <div class="info-field" id="info-result"></div>
+        <div class="card-body" style="flex-direction: row; justify-content: center; gap: 16px;">
+          <div id="btn-score-white" class="score-badge white-score" role="button" tabindex="0" title="View Team Intel">
+             <span class="score-team">White</span>
+             <span id="score-val-white" class="score-val">+0</span>
+          </div>
+          <div id="btn-score-black" class="score-badge black-score" role="button" tabindex="0" title="View Team Intel">
+             <span class="score-team">Black</span>
+             <span id="score-val-black" class="score-val">+0</span>
+          </div>
         </div>
-      </div>
-
-      <!-- 5. Move List -->
-      <div class="md-card movelist-card">
-        <div class="card-header">
-          <span class="card-title">Move List</span>
-          <span id="move-counter" style="font-size:0.7rem;color:var(--md-text-low);font-family:'Roboto Mono',monospace;">0 / 0</span>
-        </div>
-        <div id="move-list" class="move-scroll" role="list" aria-label="Chess moves"></div>
       </div>
 
     </aside>
 
-    <!-- ══ RIGHT PANEL — Board only ══ -->
-    <section class="panel-right" aria-label="Chess Board">
+    <!-- ══ CENTER PANEL — Board ══ -->
+    <section class="panel-center" aria-label="Chess Board">
 
       <!-- Board -->
       <div class="board-container">
@@ -168,28 +159,70 @@
         <span class="status-text" id="status-text">Paste a PGN and click Visualize Game</span>
       </div>
 
-      <!-- Captures -->
-      <div class="captures-section">
-        <div class="capture-box">
-          <div class="cap-label">⬛ Black captures</div>
-          <span id="black-captures" class="cap-pieces"></span>
-        </div>
-        <div class="capture-box">
-          <div class="cap-label">⬜ White captures</div>
-          <span id="white-captures" class="cap-pieces"></span>
-        </div>
-      </div>
-
     </section>
+
+    <!-- Right panel purged allowing main board expanding horizontally gracefully. -->
   </div>
 
 </div>
 
+<!-- Global Modals -->
+<dialog id="pgn-modal" class="nm-dialog">
+  <div class="dialog-header">
+     <h3>PGN Output</h3>
+     <button id="btn-close-pgn" class="dialog-close">✖</button>
+  </div>
+  <div class="dialog-body">
+
+     <textarea id="pgn-input" class="pgn-textarea" placeholder="Load or fetch a file to reveal PGN notation here…"></textarea>
+  </div>
+</dialog>
+
+<dialog id="details-modal" class="nm-dialog">
+  <div class="dialog-header">
+     <h3>Game Background Details</h3>
+     <button id="btn-close-details" class="dialog-close">✖</button>
+  </div>
+  <div class="dialog-body">
+      <div class="game-info-inner" id="game-info" style="display: flex; flex-direction: column; gap: 14px;">
+          <div class="info-field" id="info-event"></div>
+          <div class="info-field" id="info-players"></div>
+          <div class="info-field" id="info-date"></div>
+          <div class="info-field" id="info-result"></div>
+      </div>
+      </div>
+  </div>
+</dialog>
+
+<dialog id="captures-modal" class="nm-dialog" style="width: 460px; text-align: left;">
+  <div class="dialog-header">
+     <h3 id="captures-modal-title">Team Intel</h3>
+     <button id="btn-close-captures" class="dialog-close">✖</button>
+  </div>
+  <div class="dialog-body" style="display: flex; flex-direction: column; gap: 16px;">
+     <div style="display: flex; gap: 12px;">
+         <div class="capture-box" style="flex: 1;">
+           <div class="cap-label" id="captures-label-taken">Took</div>
+           <span id="modal-captures" class="cap-pieces" style="min-height: 1.8rem; font-size: 1.5rem; letter-spacing: -2px;"></span>
+         </div>
+         <div class="capture-box" style="flex: 1;">
+           <div class="cap-label" id="captures-label-lost">Sacrificed / Lost</div>
+           <span id="modal-sacrifices" class="cap-pieces" style="min-height: 1.8rem; font-size: 1.5rem; letter-spacing: -2px;"></span>
+         </div>
+     </div>
+     
+     <div class="cap-label" style="margin-top: 4px; margin-bottom: -6px; padding-left: 4px;">Score Audit Timeline (Recent Activity)</div>
+     <div class="audit-log" id="audit-log"></div>
+  </div>
+</dialog>
+
 <!-- Toast -->
 <div id="toast" class="toast" role="alert" aria-live="assertive"></div>
 
+<script src="games_assets.js"></script>
 <script src="pieces-svg.js"></script>
 <script src="chess-engine.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
