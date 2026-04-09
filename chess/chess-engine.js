@@ -68,6 +68,40 @@ class ChessEngine {
     return board;
   }
 
+  /**
+   * Generates a standard FEN string from the current engine state.
+   */
+  generateFen() {
+    let fen = '';
+    for (let rank = 7; rank >= 0; rank--) {
+      let emptyCount = 0;
+      for (let file = 0; file < 8; file++) {
+        const piece = this.board[rank * 8 + file];
+        if (piece) {
+          if (emptyCount > 0) { fen += emptyCount; emptyCount = 0; }
+          const color = piece[0], type = piece[1];
+          fen += color === 'w' ? type.toUpperCase() : type.toLowerCase();
+        } else {
+          emptyCount++;
+        }
+      }
+      if (emptyCount > 0) fen += emptyCount;
+      if (rank > 0) fen += '/';
+    }
+
+    fen += ` ${this.turn} `;
+
+    let castling = '';
+    if (this.castlingRights.wK) castling += 'K';
+    if (this.castlingRights.wQ) castling += 'Q';
+    if (this.castlingRights.bK) castling += 'k';
+    if (this.castlingRights.bQ) castling += 'q';
+    fen += (castling || '-') + ' ';
+
+    fen += (this.enPassantTarget ? this._indexToSquare(this.enPassantTarget) : '-') + ' 0 1';
+    return fen;
+  }
+
   // ──────────────────────────────────────────────
   // Square helpers
   // ──────────────────────────────────────────────

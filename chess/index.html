@@ -19,20 +19,22 @@
     </div>
     
     <div class="top-bar-actions" style="margin-left: auto; display: flex; gap: 12px; align-items: center;">
-        <button id="btn-fetch-game" class="md-btn md-btn-fetch" style="height: 32px; font-size: 0.70rem; padding: 0 12px;">
+        <button id="btn-fetch-game" class="md-btn md-btn-filled" style="height: 32px; font-size: 0.70rem; padding: 0 12px;">
             <svg id="fetch-spin-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
             <span id="fetch-label">Load Game</span>
         </button>
         <button id="btn-clear" class="md-btn md-btn-tonal" style="height: 32px; font-size: 0.70rem; padding: 0 12px;">Clear</button>
-        <button id="btn-analyze" class="md-btn md-btn-filled" style="height: 32px; font-size: 0.75rem; padding: 0 16px;">Visualize Game</button>
-        <button id="btn-open-pgn" class="md-btn md-btn-tonal" style="height: 32px; font-size: 0.75rem; padding: 0 16px;">View Game</button>
+        <button id="btn-open-pgn" class="md-btn md-btn-tonal" style="height: 32px; font-size: 0.75rem; padding: 0 16px;">Load/View PGN</button>
         <button id="btn-open-details" class="md-btn md-btn-tonal" style="height: 32px; font-size: 0.75rem; padding: 0 16px;">Game Details</button>
-        <button id="btn-explain" class="md-btn md-btn-tonal" disabled style="height: 32px; font-size: 0.75rem; padding: 0 16px;">Explain</button>
     </div>
   </header>
 
   <!-- ── Horizontal Move List ── -->
   <div class="top-move-list-wrapper">
+    <!-- EVAL TILE (Moved to top left alongside moves) -->
+    <div id="nav-eval-tile" class="nav-eval-tile" style="display: none; margin-right: 12px; flex-shrink: 0;">
+        <span id="nav-eval-val">0.0</span>
+    </div>
     <button id="move-scroll-left" class="move-nav-btn" aria-label="Scroll left">&#10094;</button>
     
     <div class="top-move-list">
@@ -53,13 +55,20 @@
       <!-- 1. Speed + Voice Card  ← ABOVE PGN -->
       <div class="md-card speed-card">
         <div class="card-header">
-          <span class="card-title">Playback Speed</span>
-          <button id="btn-voice" class="voice-btn active" title="Toggle voice narration" aria-label="Voice narration on/off">
-            <svg id="voice-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
-            </svg>
-            <span id="voice-label">Voice On</span>
-          </button>
+          <span class="card-title">Analysis & Playback</span>
+          <div style="display: flex; gap: 8px;">
+              <button id="btn-voice" class="voice-btn active" title="Toggle voice narration" aria-label="Voice narration on/off">
+                <svg id="voice-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+                </svg>
+                <span id="voice-label">Voice On</span>
+              </button>
+              
+              <button id="btn-explain" class="voice-btn" title="Toggle live analysis transcript" aria-label="Live analysis on/off">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                <span id="explain-label">Explain Off</span>
+              </button>
+          </div>
         </div>
         <div class="speed-card-body">
           <span class="speed-min-label">1s</span>
@@ -139,9 +148,17 @@
             <span>8</span><span>7</span><span>6</span><span>5</span>
             <span>4</span><span>3</span><span>2</span><span>1</span>
           </div>
+
+          <!-- Evaluation Bar -->
+          <div class="eval-bar-container">
+              <div id="eval-bar-fill" class="eval-bar-fill"></div>
+              <div id="eval-val" class="eval-val">0.0</div>
+          </div>
+
           <div class="board-frame">
             <div id="chess-board" role="grid" aria-label="Chess board"></div>
           </div>
+
           <div class="rank-labels">
             <span>8</span><span>7</span><span>6</span><span>5</span>
             <span>4</span><span>3</span><span>2</span><span>1</span>
@@ -161,7 +178,19 @@
 
     </section>
 
-    <!-- Right panel purged allowing main board expanding horizontally gracefully. -->
+    <!-- ══ RIGHT PANEL — Live Analysis Transcript ══ -->
+    <aside class="panel-right hidden" id="explain-panel">
+      <div class="md-card" style="height: 100%; display: flex; flex-direction: column;">
+        <div class="card-header">
+          <span class="card-title">Live Analysis</span>
+        </div>
+        <div class="card-body" id="explain-transcript" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 15px;">
+           <div class="transcript-placeholder" style="text-align: center; color: var(--text-4); font-style: italic; margin-top: 40px;">
+             Analysis transcript will appear here as you play...
+           </div>
+        </div>
+      </div>
+    </aside>
   </div>
 
 </div>
@@ -169,12 +198,15 @@
 <!-- Global Modals -->
 <dialog id="pgn-modal" class="nm-dialog">
   <div class="dialog-header">
-     <h3>PGN Output</h3>
+     <h3 id="pgn-modal-title">PGN Studio</h3>
      <button id="btn-close-pgn" class="dialog-close">✖</button>
   </div>
   <div class="dialog-body">
 
      <textarea id="pgn-input" class="pgn-textarea" placeholder="Load or fetch a file to reveal PGN notation here…"></textarea>
+     <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
+         <button id="btn-analyze-modal" class="md-btn md-btn-filled" style="padding: 0 24px; height: 40px; font-size: 0.85rem;">Visualize Game</button>
+     </div>
   </div>
 </dialog>
 
@@ -216,6 +248,8 @@
   </div>
 </dialog>
 
+
+
 <!-- Toast -->
 <div id="toast" class="toast" role="alert" aria-live="assertive"></div>
 
@@ -223,6 +257,7 @@
 <script src="pieces-svg.js"></script>
 <script src="chess-engine.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

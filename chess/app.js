@@ -16,7 +16,7 @@ const $ = id => document.getElementById(id);
 
 const boardEl        = $('chess-board');
 const pgnInput       = $('pgn-input');
-const btnAnalyze     = $('btn-analyze');
+const btnAnalyze     = $('btn-analyze-modal');
 const btnClear       = $('btn-clear');
 const btnLoadSample  = $('btn-load-sample');
 const btnPlayPause   = $('btn-play-pause');
@@ -58,9 +58,20 @@ let totalSteps    = 0;
 let playInterval  = null;
 let isPlaying     = false;
 let playSpeed     = 2000;
+// Analysis State
+let explainOn = false;
+let analyzedSteps = new Set();
+const btnExplain = $('btn-explain');
+const explainLabel = $('explain-label');
+const explainPanel = $('explain-panel');
+const explainTranscript = $('explain-transcript');
 let boardStates   = [];
 let captureStates = [];
 let voiceEnabled  = true;
+let stockfish     = null;
+let lastEval      = 0;
+let moveEvaluations = []; // index matches currentStep
+let evaluatingStep = -1;
 
 // ── SVG icon paths ────────────────────────────────────────────────
 const PLAY_SVG  = '<path d="M8 5v14l11-7z"/>';
@@ -262,8 +273,20 @@ function renderCaptures(capW, capB) {
   
   const scoreW = $('score-val-white');
   const scoreB = $('score-val-black');
-  if (scoreW) scoreW.textContent = diff > 0 ? `+${diff}` : '0';
-  if (scoreB) scoreB.textContent = diff < 0 ? `+${Math.abs(diff)}` : '0';
+  
+  if (scoreW && scoreB) {
+    const absDiff = Math.abs(diff);
+    if (diff > 0) {
+      scoreW.textContent = `+${absDiff}`;
+      scoreB.textContent = '+0';
+    } else if (diff < 0) {
+      scoreW.textContent = '+0';
+      scoreB.textContent = `+${absDiff}`;
+    } else {
+      scoreW.textContent = '+0';
+      scoreB.textContent = '+0';
+    }
+  }
   
   if ($('captures-modal')?.open) updateCapturesModal();
 }
@@ -395,6 +418,7 @@ function buildMoveChip(san, step) {
   const descEl = document.createElement('span');
   descEl.className = 'move-desc';
   descEl.textContent = describeMove(san);
+  
   chip.appendChild(sanEl);
   chip.appendChild(descEl);
   chip.addEventListener('click', () => { stopPlay(); jumpToStep(step); });
@@ -472,6 +496,19 @@ function updateView() {
   syncButtons();
   syncSpeedSlider();
 
+  // Engine Evaluation
+  if (stockfish) {
+    const tempEngine = new ChessEngine();
+    for (let i = 0; i < currentStep; i++) {
+        tempEngine.applySAN(allMoves[i]);
+    }
+    const fen = tempEngine.generateFen();
+    evaluatingStep = currentStep;
+    console.log(`[Engine] Analyzing Step ${currentStep}: ${fen}`);
+    stockfish.postMessage(`position fen ${fen}`);
+    stockfish.postMessage('go depth 10');
+  }
+
   // Speak move (only if it's a new step, not on jump-back re-renders of same step)
   if (currentStep !== lastVoiceStep && currentStep > 0) {
     speakMove(currentStep);
@@ -531,7 +568,7 @@ btnEnd.addEventListener('click',   () => { stopPlay(); jumpToStep(totalSteps); }
 btnPrev.addEventListener('click',  () => { stopPlay(); speechSynthesis.cancel(); jumpToStep(currentStep - 1); });
 btnNext.addEventListener('click',  () => { stopPlay(); jumpToStep(currentStep + 1); });
 if (btnClear) {
-    btnClear.addEventListener('click', () => { pgnInput.value = ''; pgnInput.focus(); });
+    btnClear.addEventListener('click', fullReset);
 }
 
 speedSlider.addEventListener('input', () => {
@@ -887,6 +924,37 @@ function displayGameInfo(headers) {
   } else infoResult.textContent = '';
 }
 
+// ── Full Reset ────────────────────────────────────────────────────
+function fullReset() {
+  stopPlay();
+  if (window.speechSynthesis) speechSynthesis.cancel();
+
+  engine = new ChessEngine();
+  allMoves = [];
+  gameHistory = [];
+  boardStates = [[...engine.board]];
+  captureStates = [{ capturedByWhite: [], capturedByBlack: [] }];
+  moveEvaluations = [];
+
+  currentStep = 0;
+  totalSteps = 0;
+  lastVoiceStep = -1;
+
+  if (pgnInput) {
+    pgnInput.value = '';
+    pgnInput.focus();
+  }
+  if (moveListEl) moveListEl.innerHTML = '';
+  if (statusText) statusText.textContent = 'Paste a PGN and click Visualize Game';
+  if (statusDot) statusDot.className = 'status-dot';
+
+  displayGameInfo({});
+  renderCaptures([], []);
+  jumpToStep(0);
+  
+  showToast('Interface Cleared', 'ok');
+}
+
 // ── Load Game ─────────────────────────────────────────────────────
 function loadGame() {
   const pgn = pgnInput.value.trim();
@@ -895,6 +963,8 @@ function loadGame() {
   speechSynthesis.cancel();
   engine = new ChessEngine();
   allMoves = []; gameHistory = []; boardStates = []; captureStates = [];
+  moveEvaluations = [];
+
   currentStep = 0; lastVoiceStep = -1;
 
   let parsed;
@@ -939,12 +1009,112 @@ function loadGame() {
 btnAnalyze.addEventListener('click', loadGame);
 
 // ── Init ─────────────────────────────────────────────────────────
+// ── Engine / Stockfish ──────────────────────────────────────────
+function initStockfish() {
+  try {
+      // 1. Create a Blob shim to bypass origin restrictions on file://
+      const blobCode = `
+        importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
+        var engine = typeof STOCKFISH === 'function' ? STOCKFISH() : null;
+        if (engine) {
+          self.onmessage = function(e) { engine.postMessage(e.data); };
+          engine.onmessage = function(e) { self.postMessage(e.data); };
+        }
+      `;
+      const blob = new Blob([blobCode], { type: 'application/javascript' });
+      const blobURL = URL.createObjectURL(blob);
+      
+      stockfish = new Worker(blobURL);
+      console.log('[Engine] Stockfish initialized via Blob Shim (file:// compatible).');
+      
+      stockfish.onmessage = (msg) => {
+          const line = typeof msg === 'string' ? msg : (msg.data || '');
+          if (typeof line !== 'string') return;
+          
+          if (line.includes('score cp') || line.includes('score mate')) {
+              const cpMatch = line.match(/score cp (-?\d+)/);
+              const mateMatch = line.match(/score mate (-?\d+)/);
+              
+              if (cpMatch) {
+                  updateEvalBar(parseInt(cpMatch[1]));
+              } else if (mateMatch) {
+                  const mate = parseInt(mateMatch[1]);
+                  updateEvalBar(mate > 0 ? 1000 : -1000);
+              }
+          }
+      };
+      
+      stockfish.postMessage('uci');
+      stockfish.postMessage('ucinewgame');
+      stockfish.postMessage('isready');
+  } catch (e) {
+      console.error('[Engine] Failed to init Stockfish:', e);
+  }
+}
+
+function updateEvalBar(cp) {
+  const score = cp / 100;
+  lastEval = score;
+  
+  if (evaluatingStep !== -1) {
+    moveEvaluations[evaluatingStep] = score;
+  }
+
+  const fill = $('eval-bar-fill');
+  const valText = $('eval-val');
+  if (!fill || !valText) return;
+
+  // Percentage for UI: +10 is 95%, 0 is 50%, -10 is 5%
+  let pct = 50 + (score * 4.5);
+  pct = Math.max(5, Math.min(95, pct));
+  
+  fill.style.height = `${pct}%`;
+  valText.textContent = (score > 0 ? '+' : '') + score.toFixed(1);
+
+  // Update Nav Score Tile
+  const navTile = $('nav-eval-tile');
+  const navVal  = $('nav-eval-val');
+  if (navTile && navVal) {
+      navTile.style.display = 'flex';
+      navVal.textContent = (score > 0 ? '+' : '') + score.toFixed(1);
+      
+      navTile.classList.remove('nav-eval-pos', 'nav-eval-neg', 'nav-eval-neu');
+      if (score > 0.2)       navTile.classList.add('nav-eval-pos');
+      else if (score < -0.2) navTile.classList.add('nav-eval-neg');
+      else                   navTile.classList.add('nav-eval-neu');
+  }
+
+  // Update Transcript if live
+  updateExplainTranscript();
+}
+
+function getMoveRating(step) {
+  if (step === 0) return null;
+  const current = moveEvaluations[step];
+  const prev    = moveEvaluations[step - 1];
+  
+  if (current === undefined || prev === undefined) return null;
+
+  const diff = current - prev;
+  const isWhiteMove = step % 2 !== 0;
+  const loss = isWhiteMove ? -diff : diff;
+
+  if (loss > 2.0) return { label: 'Blunder', color: '#ff4b4b', icon: '??' };
+  if (loss > 1.0) return { label: 'Mistake', color: '#ffa500', icon: '?' };
+  if (loss > 0.5) return { label: 'Inaccuracy', color: '#dbdb00', icon: '?!' };
+  if (loss < -0.5) return { label: 'Great Move', color: '#00d0ff', icon: '!!' };
+  if (loss < 0.1)  return { label: 'Best Move', color: '#45e645', icon: '★' };
+  return { label: 'Good Move', color: '#45e645', icon: '✓' };
+}
+
 function init() {
   initBoard();
+  initStockfish();
   speedVal.textContent = `${(playSpeed / 1000).toFixed(1)}s`;
   speedSlider.value = playSpeed;
   syncSpeedSlider();
   syncVoiceButton();
+  syncExplainButton();
 
   engine = new ChessEngine();
   boardStates   = [[...engine.board]];
@@ -974,22 +1144,73 @@ if (scrollRightBtn && topMoveListEl) {
     });
 }
 
-const btnExplain = $('btn-explain');
 if (btnExplain) {
     btnExplain.addEventListener('click', () => {
-        let query = 'chess game analysis';
-        if (currentGameHeaders.White && currentGameHeaders.Black) {
-            query = `${currentGameHeaders.White} vs ${currentGameHeaders.Black} chess game analysis`;
-        }
-        if (currentGameHeaders.Event && currentGameHeaders.Event !== '?') {
-            query += ` ${currentGameHeaders.Event}`;
-        }
-        if (currentGameHeaders.Date && !currentGameHeaders.Date.startsWith('?')) {
-            query += ` ${currentGameHeaders.Date.substring(0, 4)}`;
-        }
-        window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank');
+        explainOn = !explainOn;
+        syncExplainButton();
+        if (explainOn) updateExplainTranscript();
     });
 }
+
+function syncExplainButton() {
+    if (!btnExplain) return;
+    btnExplain.classList.toggle('active', explainOn);
+    if (explainLabel) explainLabel.textContent = explainOn ? 'Explain On' : 'Explain Off';
+    if (explainPanel) explainPanel.classList.toggle('hidden', !explainOn);
+}
+
+function updateExplainTranscript() {
+    if (!explainOn) return;
+    const transcriptEl = $('explain-transcript');
+    if (!transcriptEl) return;
+    
+    // If it's the start, just clear if it's many moves in? 
+    // Usually transcript grows as you play.
+    if (currentStep === 0 && !analyzedSteps.has(0)) {
+        transcriptEl.innerHTML = '';
+    } else {
+        const placeholder = transcriptEl.querySelector('.transcript-placeholder');
+        if (placeholder) placeholder.remove();
+    }
+
+    if (analyzedSteps.has(currentStep)) return; 
+
+    const evalScore = lastEval || 0;
+    const rating = getMoveRating(currentStep);
+    if (!rating && currentStep > 0 && Math.abs(evalScore) < 0.01) return; // Wait for real eval
+
+    const item = document.createElement('div');
+    item.className = 'transcript-item';
+    if (rating) item.style.borderLeftColor = rating.color;
+
+    let outlook = "Balanced.";
+    if (evalScore > 1.5) outlook = "White dominating.";
+    else if (evalScore > 0.6) outlook = "White has clear edge.";
+    else if (evalScore < -1.5) outlook = "Black dominating.";
+    else if (evalScore < -0.6) outlook = "Black has clear edge.";
+
+    const moveStr = currentStep > 0 ? allMoves[currentStep - 1] : "Start";
+
+    item.innerHTML = `
+        <div class="transcript-header">
+            <span>Step ${currentStep} (${moveStr})</span>
+            <span class="transcript-eval">${(evalScore > 0 ? '+' : '')}${evalScore.toFixed(1)}</span>
+        </div>
+        ${rating ? `
+        <div class="transcript-rating" style="color:${rating.color}">
+            <span style="background:${rating.color}; color:#fff; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.75rem;">${rating.icon}</span>
+            <span style="font-size:0.85rem;">${rating.label}</span>
+        </div>` : ''}
+        <div class="transcript-text">
+            ${currentStep === 0 ? 'Engine analysis initiated at starting position.' : `The evaluation after <b>${moveStr}</b> is ${evalScore.toFixed(1)}. ${outlook}`}
+        </div>
+    `;
+    
+    transcriptEl.appendChild(item);
+    analyzedSteps.add(currentStep);
+    transcriptEl.scrollTo({ top: transcriptEl.scrollHeight, behavior: 'smooth' });
+}
+
 
 // Modal Interactions
 const pgnModal = $('pgn-modal');
@@ -998,8 +1219,20 @@ const btnOpenPgn = $('btn-open-pgn');
 const btnClosePgn = $('btn-close-pgn');
 const btnOpenDetails = $('btn-open-details');
 const btnCloseDetails = $('btn-close-details');
+const btnLoadPgn = $('btn-load-pgn');
+if (btnLoadPgn && pgnModal) {
+    btnLoadPgn.addEventListener('click', () => {
+        if ($('pgn-modal-title')) $('pgn-modal-title').textContent = "Load PGN Game";
+        pgnInput.placeholder = "Paste a PGN here (e.g. 1. e4 e5...)";
+        pgnModal.showModal();
+    });
+}
+
 if (btnOpenPgn && pgnModal) {
-    btnOpenPgn.addEventListener('click', () => pgnModal.showModal());
+    btnOpenPgn.addEventListener('click', () => {
+        if ($('pgn-modal-title')) $('pgn-modal-title').textContent = "View/Export PGN";
+        pgnModal.showModal();
+    });
     btnClosePgn.addEventListener('click', () => pgnModal.close());
     pgnModal.addEventListener('click', e => {
         if(e.target === pgnModal) pgnModal.close();
