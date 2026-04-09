@@ -18,14 +18,21 @@
         <span class="top-bar-title">Chess<span>Learner</span></span>
     </div>
     
-    <div class="top-bar-actions" style="margin-left: auto; display: flex; gap: 12px; align-items: center;">
+    <div class="top-bar-actions" id="top-bar-actions">
         <button id="btn-fetch-game" class="md-btn md-btn-filled" style="height: 32px; font-size: 0.70rem; padding: 0 12px;">
-            <svg id="fetch-spin-icon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
             <span id="fetch-label">Load Game</span>
         </button>
         <button id="btn-clear" class="md-btn md-btn-tonal" style="height: 32px; font-size: 0.70rem; padding: 0 12px;">Clear</button>
         <button id="btn-open-pgn" class="md-btn md-btn-tonal" style="height: 32px; font-size: 0.75rem; padding: 0 16px;">Load/View PGN</button>
         <button id="btn-open-details" class="md-btn md-btn-tonal" style="height: 32px; font-size: 0.75rem; padding: 0 16px;">Game Details</button>
+        
+        <!-- Hamburger Button (Visible on Mobile) -->
+        <button id="btn-hamburger" class="ctrl-sidebar-btn" style="display: none; width: 36px; height: 36px; box-shadow: var(--nm-raised-sm);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+               <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+            </svg>
+        </button>
     </div>
   </header>
 
@@ -199,7 +206,17 @@
 
 </div>
 
-<!-- Global Modals -->
+<!-- Mobile Menu Modal -->
+<dialog id="menu-modal" class="nm-dialog" style="width: 280px;">
+  <div class="dialog-header">
+     <h3>Navigation</h3>
+     <button id="btn-close-menu" class="dialog-close">✖</button>
+  </div>
+  <div class="dialog-body" id="menu-modal-body" style="display: flex; flex-direction: column; gap: 16px; padding: 20px;">
+      <!-- Buttons will be cloned here for mobile if needed, or we just target the existing ones -->
+      <p style="font-size: 0.8rem; color: var(--text-4); text-align: center; margin-bottom: 10px;">Select an action:</p>
+  </div>
+</dialog>
 <dialog id="pgn-modal" class="nm-dialog">
   <div class="dialog-header">
      <h3 id="pgn-modal-title">PGN Studio</h3>

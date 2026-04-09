@@ -1152,6 +1152,32 @@ if (btnExplain) {
     });
 }
 
+// Mobile Menu Logic
+const menuModal = $('menu-modal');
+const btnHamburger = $('btn-hamburger');
+const menuBody = $('menu-modal-body');
+const topActions = $('top-bar-actions');
+
+if (btnHamburger && menuModal) {
+    btnHamburger.addEventListener('click', () => {
+        const buttons = Array.from(topActions.querySelectorAll('.md-btn'));
+        buttons.forEach(btn => menuBody.appendChild(btn));
+        menuModal.showModal();
+    });
+
+    const btnCloseMenu = $('btn-close-menu');
+    if (btnCloseMenu) btnCloseMenu.addEventListener('click', () => menuModal.close());
+    
+    menuModal.addEventListener('close', () => {
+        const buttons = Array.from(menuBody.querySelectorAll('.md-btn'));
+        buttons.forEach(btn => topActions.insertBefore(btn, btnHamburger));
+    });
+    
+    menuModal.addEventListener('click', e => {
+        if(e.target === menuModal) menuModal.close();
+    });
+}
+
 function syncExplainButton() {
     if (!btnExplain) return;
     btnExplain.classList.toggle('active', explainOn);

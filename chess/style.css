@@ -1005,19 +1005,147 @@ body::before {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   RESPONSIVE
+   RESPONSIVE DESIGN (Mobile & Tablet)
 ══════════════════════════════════════════════════════════════ */
-@media (max-width: 1000px) {
-  .content-area { grid-template-columns: 1fr; padding: 16px; gap: 18px; }
-  :root { --board-size: min(500px, 92vw); }
-  .panel-right { width: 100%; }
+@media (max-width: 1250px) {
+  .content-area {
+    flex-direction: column;
+    height: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px;
+  }
+  
+  .panel-left, .panel-right {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 10px;
+    overflow: visible;
+  }
+
+  /* Keep board in middle or move to top */
+  .panel-center {
+    order: -1; 
+    width: 100%;
+    padding: 10px 0;
+    height: auto;
+    overflow: visible;
+  }
+
+  .panel-right {
+    order: 5;
+    height: auto;
+  }
+
+  :root {
+    --board-size: min(580px, 92vw);
+  }
+
+  .board-container {
+    padding: 10px;
+  }
+  
+  .rank-labels span, .file-labels span {
+    font-size: 0.65rem;
+  }
 }
+
+@media (max-width: 768px) {
+  .top-bar {
+    padding: 0 15px;
+    height: 70px;
+    flex-wrap: wrap; /* Allow wrapping for buttons if needed */
+  }
+
+  .top-bar-title {
+    font-size: 1rem;
+  }
+
+  .move-nav-ribbon {
+    height: 60px;
+  }
+
+  .md-btn {
+    height: 36px;
+    font-size: 0.7rem;
+    padding: 0 10px;
+  }
+
+  .speed-card-body {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .speed-slider-container {
+      width: 100%;
+  }
+
+  .transcript-item {
+    padding: 10px;
+  }
+}
+
 @media (max-width: 480px) {
-  :root { --board-size: min(340px, 96vw); }
-  .top-bar-subtitle { display: none; }
-  .controls-body { gap: 6px; }
-  .ctrl-sidebar-play { padding: 0 14px; font-size: 0.76rem; }
+  :root {
+    --board-size: min(340px, 94vw);
+  }
+
+  .top-bar-subtitle, .keyboard-hint {
+    display: none;
+  }
+
+  .card-header {
+    padding: 12px 15px;
+  }
+  
+  .card-title {
+    font-size: 0.75rem;
+  }
+
+  .score-badge {
+    padding: 4px 10px;
+    font-size: 0.85rem;
+  }
+
+  .nav-eval-tile {
+    min-width: 50px;
+    height: 28px;
+    font-size: 0.7rem;
+  }
 }
+
+@media (max-width: 1024px) {
+  #btn-clear, #btn-open-pgn, #btn-open-details, #btn-fetch-game {
+    display: none !important;
+  }
+  #btn-hamburger {
+    display: flex !important;
+    position: relative;
+    z-index: 100;
+  }
+  .top-bar-actions {
+    margin-left: auto;
+    display: flex !important;
+    align-items: center;
+  }
+  
+  #menu-modal .md-btn {
+    width: 100%;
+    height: 48px;
+    font-size: 0.9rem;
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    box-shadow: var(--nm-raised-sm);
+    margin-bottom: 8px;
+  }
+}
+
+/* Ensure images don't overflow */
+img { max-width: 100%; height: auto; }
 
 /* ══════════════════════════════════════════════════════════════
    DIALOG OVERLAYS
